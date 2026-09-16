@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Common Calendar Availability</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Luxon for Timezone & Date Math -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/3.4.4/luxon.min.js"></script>
+  <!-- Google Identity Services (GSI) Token Client -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md flex items-center justify-center">
+          <i class="fa-solid fa-users-rectangle text-xl"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-slate-900 text-lg leading-snug">Common Calendar Availability</h1>
+          <p class="text-xs text-slate-500 font-medium">Find overlapping free slots across Google Workspace teammates</p>
+        </div>
+      </div>
+
+      <!-- Mode Switcher -->
+      <div class="flex items-center space-x-2 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+        <button id="modeDemoBtn" onclick="switchMode('demo')" class="px-3 py-1.5 rounded-lg transition-all text-slate-600 hover:text-slate-900">
+          <i class="fa-solid fa-bolt text-amber-500 mr-1.5"></i>Demo Mode
+        </button>
+        <button id="modeGoogleBtn" onclick="switchMode('google')" class="px-3 py-1.5 rounded-lg transition-all shadow-sm bg-white text-indigo-600 font-bold">
+          <i class="fa-brands fa-google text-indigo-500 mr-1.5"></i>Google OAuth
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Grid -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
+    
+    <!-- Left Configuration Sidebar -->
+    <div class="lg:col-span-5 xl:col-span-4 space-y-6">
+      
+      <!-- OAuth Connection Box -->
+      <div id="authCard" class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+        
+        <!-- Demo Banner -->
+        <div id="demoNotice" class="hidden flex items-start space-x-3 bg-amber-50 border border-amber-200/70 p-3.5 rounded-xl text-amber-900 text-xs">
+          <i class="fa-solid fa-circle-info text-amber-500 text-base mt-0.5"></i>
+          <div>
+            <span class="font-bold block mb-0.5">Demo Mode Active</span>
+            Preloaded with mock calendars and sample Workspace teammate search. Switch to Google OAuth above to connect your Google account.
+          </div>
+        </div>
+
+        <!-- Google OAuth Section -->
+        <div id="googleAuthSection" class="space-y-3">
+          
+          <!-- Disconnected View -->
+          <div id="disconnectedState" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Google Workspace</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600">
+                Disconnected
+              </span>
+            </div>
+            
+            <p class="text-xs text-slate-500 leading-relaxed">
+              Sign in with your Google Workspace or Gmail account to sync your calendars and search teammate emails.
+            </p>
+
+            <button id="connectGoogleBtn" onclick="handleAuthClick()" 
+              class="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 font-semibold text-xs py-2.5 px-4 rounded-xl shadow-sm transition flex items-center justify-center space-x-3 active:scale-[0.99]">
+              <svg class="w-4 h-4" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span>Connect Google Workspace</span>
+            </button>
+          </div>
+
+          <!-- Connected View -->
+          <div id="connectedState" class="hidden bg-indigo-50/60 border border-indigo-100 p-3.5 rounded-xl space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span class="text-xs font-bold text-indigo-950">Workspace Connected</span>
+              </div>
+              <button onclick="disconnectAccount()" class="text-[11px] text-slate-500 hover:text-rose-600 font-medium transition">
+                Disconnect
+              </button>
+            </div>
+            <p id="connectedUserEmail" class="text-[11px] text-indigo-700 font-mono font-semibold truncate">
+              Google Workspace Account Active
+            </p>
+          </div>
+
+          <!-- Error Alert Banner -->
+          <div id="oauthErrorBanner" class="hidden bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs text-rose-800 space-y-1">
+            <div class="font-bold flex items-center gap-1.5 text-rose-900">
+              <i class="fa-solid fa-triangle-exclamation text-rose-600"></i>
+              <span id="oauthErrorTitle">OAuth Setup Issue</span>
+            </div>
+            <div id="oauthErrorMsg" class="text-[11px] leading-relaxed">Error details will appear here.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Controls Form -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-5">
+        <h2 class="font-bold text-slate-900 text-base flex items-center justify-between border-b border-slate-100 pb-3">
+          <span>Search Parameters</span>
+          <i class="fa-solid fa-sliders text-indigo-500"></i>
+        </h2>
+
+        <!-- 1. Connected Calendars -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-solid fa-user-check text-slate-400"></i> My Calendars
+            </label>
+            <div class="space-x-1">
+              <button onclick="selectAllCalendars(true)" class="text-[11px] font-medium text-indigo-600 hover:underline">All</button>
+              <span class="text-slate-300">|</span>
+              <button onclick="selectAllCalendars(false)" class="text-[11px] font-medium text-slate-500 hover:underline">None</button>
+            </div>
+          </div>
+          <div id="calendarListContainer" class="max-h-36 overflow-y-auto custom-scrollbar border border-slate-200 rounded-xl p-2 bg-slate-50 space-y-1">
+          </div>
+        </div>
+
+        <!-- 2. Workspace Teammates Input with Directory Autocomplete -->
+        <div class="relative">
+          <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <i class="fa-solid fa-address-book text-indigo-500"></i> Workspace Teammate Emails
+          </label>
+          <div class="flex gap-2 mb-2">
+            <div class="relative flex-1">
+              <input type="email" id="teammateEmailInput" placeholder="Search name or type email..." 
+                autocomplete="off"
+                class="w-full text-xs px-3 py-2 pr-8 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+              <span id="searchSpinner" class="hidden absolute right-2.5 top-2.5 text-slate-400 text-xs">
+                <i class="fa-solid fa-circle-notch animate-spin"></i>
+              </span>
+            </div>
+            <button onclick="addManualTeammateEmail()" class="bg-slate-900 text-white font-semibold text-xs px-3 py-2 rounded-lg hover:bg-slate-800 transition">Add</button>
+          </div>
+
+          <!-- Autocomplete Results Dropdown -->
+          <div id="autocompleteDropdown" class="hidden absolute z-50 left-0 right-0 top-[62px] bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto custom-scrollbar divide-y divide-slate-100">
+          </div>
+
+          <div id="teammatesChipsContainer" class="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl min-h-[42px] max-h-28 overflow-y-auto custom-scrollbar">
+          </div>
+        </div>
+
+        <!-- 3. Date Range -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <i class="fa-regular fa-calendar-days text-slate-400"></i> Date Range
+            </label>
+            <div class="flex gap-1">
+              <button onclick="setPresetDateRange(7)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 transition">7 Days</button>
+              <button onclick="setPresetDateRange(14)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded text-slate-600 transition">14 Days</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Start Date</span>
+              <input type="date" id="startDate" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">End Date</span>
+              <input type="date" id="endDate" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Working Hours -->
+        <div>
+          <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-2">
+            <i class="fa-regular fa-clock text-slate-400"></i> Working Hours
+          </label>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">Start Time</span>
+              <input type="time" id="workStart" value="09:00" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+            <div>
+              <span class="text-[11px] text-slate-500 block mb-1">End Time</span>
+              <input type="time" id="workEnd" value="18:00" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Minimum Slot Duration -->
+        <div>
+          <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
+            <i class="fa-solid fa-hourglass-half text-slate-400"></i> Minimum Duration (Minutes)
+          </label>
+          <div class="flex items-center space-x-2">
+            <input type="number" id="minDuration" value="60" min="5" step="5" class="w-24 text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+            <div class="flex flex-wrap gap-1">
+              <button onclick="setMinDuration(30)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-700 font-medium transition">30m</button>
+              <button onclick="setMinDuration(60)" class="text-[11px] bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-2 py-1 rounded font-semibold transition">60m</button>
+              <button onclick="setMinDuration(90)" class="text-[11px] bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-700 font-medium transition">90m</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. Timezone & Weekends Toggle -->
+        <div class="space-y-3 pt-2 border-t border-slate-100">
+          <div>
+            <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5 mb-1">
+              <i class="fa-solid fa-earth-americas text-slate-400"></i> Target Timezone
+            </label>
+            <select id="timezoneSelect" class="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none bg-white">
+            </select>
+          </div>
+
+          <label class="flex items-center space-x-2.5 cursor-pointer pt-1">
+            <input type="checkbox" id="includeWeekends" class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+            <span class="text-xs font-semibold text-slate-700">Include Weekends</span>
+          </label>
+        </div>
+
+        <button id="findAvailabilityBtn" onclick="calculateAvailability()" 
+          class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm py-3 px-4 rounded-xl shadow-lg shadow-indigo-200 transition transform active:scale-[0.99] flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-magnifying-glass text-indigo-200"></i>
+          <span>Find Common Availability</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Results Section -->
+    <div class="lg:col-span-7 xl:col-span-8 space-y-6 flex flex-col">
+      
+      <!-- Top Action Bar -->
+      <div class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+            Common Free Slots
+            <span id="resultsCountBadge" class="text-xs bg-indigo-100 text-indigo-700 font-bold px-2.5 py-0.5 rounded-full">0 Slots</span>
+          </h2>
+          <p id="resultsSubtitle" class="text-xs text-slate-500 mt-0.5">Select parameters and click Find Common Availability</p>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <select id="copyFormatSelect" class="text-xs border border-slate-200 bg-slate-50 rounded-lg px-2.5 py-2 outline-none font-medium text-slate-700">
+            <option value="text">Plain Text</option>
+            <option value="bullets">Bulleted Summary</option>
+            <option value="markdown">Markdown</option>
+            <option value="email">Email Draft</option>
+          </select>
+
+          <button id="copyResultsBtn" onclick="copyResultsToClipboard()" disabled 
+            class="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:hover:bg-slate-900 text-white font-medium text-xs px-4 py-2 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+            <i class="fa-regular fa-copy"></i>
+            <span id="copyBtnText">Copy Results</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Comparison Bar -->
+      <div id="sourcesSummaryBar" class="bg-slate-100 rounded-xl px-4 py-2.5 border border-slate-200 text-xs text-slate-600 flex items-center justify-between hidden">
+        <span class="font-medium">Comparing: <strong id="sourcesSummaryText" class="text-slate-800">0 calendars & teammates</strong></span>
+        <i class="fa-solid fa-people-arrows text-indigo-500"></i>
+      </div>
+
+      <!-- Statistics Row -->
+      <div id="statsRow" class="grid grid-cols-3 gap-4 hidden">
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Days Checked</div>
+          <div id="statDaysCount" class="text-xl font-extrabold text-slate-800 mt-0.5">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Available Windows</div>
+          <div id="statSlotsCount" class="text-xl font-extrabold text-indigo-600 mt-0.5">0</div>
+        </div>
+        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+          <div class="text-xs text-slate-500 font-medium">Total Free Time</div>
+          <div id="statTotalHours" class="text-xl font-extrabold text-emerald-600 mt-0.5">0 hrs</div>
+        </div>
+      </div>
+
+      <!-- Results List Box -->
+      <div id="resultsContainer" class="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 overflow-y-auto min-h-[400px]">
+        <div id="placeholderState" class="h-full flex flex-col items-center justify-center text-center py-16 space-y-3">
+          <div class="w-16 h-16 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center text-2xl shadow-inner">
+            <i class="fa-solid fa-calendar-day"></i>
+          </div>
+          <div class="max-w-sm">
+            <h3 class="font-bold text-slate-800 text-base">Ready to Find Common Time</h3>
+            <p class="text-xs text-slate-500 mt-1">Select calendars, add teammate emails, and click <strong>Find Common Availability</strong> to compute overlapping free slots.</p>
+          </div>
+        </div>
+
+        <div id="loadingState" class="hidden h-full flex flex-col items-center justify-center text-center py-16 space-y-3">
+          <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <p class="text-xs font-semibold text-slate-600">Querying Google Workspace FreeBusy API for selected calendars & teammates...</p>
+        </div>
+
+        <div id="dailyResultsList" class="space-y-4 hidden">
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    // ========================================================
+    // CONFIGURATION: PASTE YOUR GOOGLE CLIENT ID HERE
+    // ========================================================
+    let CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    // ========================================================
+
+    const { DateTime } = luxon;
+
+    // App State
+    let currentMode = 'google';
+    let accessToken = null;
+    let availableCalendars = [];
+    let teammateEmails = [];
+    let lastCalculatedResults = [];
+    let searchDebounceTimer = null;
+
+    const MOCK_CALENDARS = [
+      { id: 'cal_work', summary: 'My Primary Work Calendar', primary: true, backgroundColor: '#4285f4', selected: true },
+      { id: 'cal_personal', summary: 'Personal Sync', primary: false, backgroundColor: '#34a853', selected: true }
+    ];
+
+    const MOCK_DIRECTORY = [
+      { name: 'Alex Rivera', email: 'alex@company.com', photo: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' },
+      { name: 'Sarah Chen', email: 'sarah@company.com', photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' },
+      { name: 'Michael Scott', email: 'michael@company.com', photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' },
+      { name: 'Emma Wilson', email: 'emma@company.com', photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100' },
+      { name: 'David Kim', email: 'david@company.com', photo: '' }
+    ];
+
+    function getMockBusyData(timeZone, startDateStr) {
+      const baseDate = DateTime.fromISO(startDateStr, { zone: timeZone });
+      const day1 = baseDate.toISODate();
+
+      return {
+        'cal_work': {
+          busy: [
+            { start: `${day1}T09:00:00`, end: `${day1}T10:00:00` },
+            { start: `${day1}T13:00:00`, end: `${day1}T14:00:00` }
+          ]
+        },
+        'cal_personal': {
+          busy: [{ start: `${day1}T10:30:00`, end: `${day1}T11:30:00` }]
+        },
+        'alex@company.com': {
+          busy: [
+            { start: `${day1}T11:00:00`, end: `${day1}T12:00:00` },
+            { start: `${day1}T15:00:00`, end: `${day1}T16:00:00` }
+          ]
+        }
+      };
+    }
+
+    // --- Page Initialization ---
+    window.addEventListener('DOMContentLoaded', () => {
+      populateTimezones();
+      setDefaultDates();
+      setupAutocompleteListeners();
+      renderTeammateChips();
+      switchMode('google');
+    });
+
+    function setDefaultDates() {
+      const today = DateTime.local();
+      document.getElementById('startDate').value = today.toISODate();
+      document.getElementById('endDate').value = today.plus({ days: 4 }).toISODate();
+    }
+
+    function populateTimezones() {
+      const select = document.getElementById('timezoneSelect');
+      const userTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+      const commonTimezones = [
+        userTz, 'America/New_York', 'America/Chicago', 'America/Denver',
+        'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'UTC'
+      ];
+      const uniqueTzs = Array.from(new Set(commonTimezones));
+      select.innerHTML = '';
+      uniqueTzs.forEach(tz => {
+        const opt = document.createElement('option');
+        opt.value = tz;
+        opt.textContent = tz === userTz ? `${tz} (Local System)` : tz;
+        if (tz === userTz) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function setPresetDateRange(days) {
+      const start = DateTime.local();
+      document.getElementById('startDate').value = start.toISODate();
+      document.getElementById('endDate').value = start.plus({ days: days - 1 }).toISODate();
+    }
+
+    function setMinDuration(mins) {
+      document.getElementById('minDuration').value = mins;
+    }
+
+    // --- Mode Management ---
+    function switchMode(mode) {
+      currentMode = mode;
+      document.getElementById('demoNotice').classList.toggle('hidden', mode !== 'demo');
+      document.getElementById('googleAuthSection').classList.toggle('hidden', mode === 'demo');
+      
+      const demoBtn = document.getElementById('modeDemoBtn');
+      const googleBtn = document.getElementById('modeGoogleBtn');
+
+      if (mode === 'demo') {
+        demoBtn.className = "px-3 py-1.5 rounded-lg transition-all shadow-sm bg-white text-indigo-600 font-bold";
+        googleBtn.className = "px-3 py-1.5 rounded-lg transition-all text-slate-600 hover:text-slate-900";
+        renderCalendarList(MOCK_CALENDARS);
+      } else {
+        googleBtn.className = "px-3 py-1.5 rounded-lg transition-all shadow-sm bg-white text-indigo-600 font-bold";
+        demoBtn.className = "px-3 py-1.5 rounded-lg transition-all text-slate-600 hover:text-slate-900";
+        renderCalendarList(availableCalendars);
+      }
+    }
+
+    // --- OAuth Auth Handling ---
+    function handleAuthClick() {
+      hideOAuthError();
+
+      if (window.location.protocol === 'file:') {
+        showOAuthError("File Protocol Error", "Google OAuth requires running via HTTP/HTTPS. Open this file using a local web server (e.g. VS Code Live Server).");
+        return;
+      }
+
+      // Check if Client ID is unconfigured
+      if (!CLIENT_ID || CLIENT_ID.includes('YOUR_GOOGLE_CLIENT_ID')) {
+        const inputId = prompt("Please enter your Google Cloud OAuth Client ID:");
+        if (inputId && inputId.trim()) {
+          CLIENT_ID = inputId.trim();
+        } else {
+          showOAuthError("Missing Client ID", "You must set your Client ID in the JavaScript code variable <code>CLIENT_ID</code>.");
+          return;
+        }
+      }
+
+      try {
+        const tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/directory.readonly https://www.googleapis.com/auth/contacts.readonly',
+          callback: async (resp) => {
+            if (resp.error) {
+              showOAuthError("OAuth Authorization Failed", `Google error: <code>${resp.error}</code>`);
+              return;
+            }
+
+            accessToken = resp.access_token;
+            
+            // Switch UI to Connected State
+            document.getElementById('disconnectedState').classList.add('hidden');
+            document.getElementById('connectedState').classList.remove('hidden');
+            hideOAuthError();
+            
+            await loadUserGoogleCalendars();
+          },
+        });
+
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+      } catch (err) {
+        showOAuthError("Initialization Error", err.message);
+      }
+    }
+
+    function disconnectAccount() {
+      accessToken = null;
+      availableCalendars = [];
+      renderCalendarList([]);
+      document.getElementById('connectedState').classList.add('hidden');
+      document.getElementById('disconnectedState').classList.remove('hidden');
+    }
+
+    async function loadUserGoogleCalendars() {
+      try {
+        const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (!res.ok) {
+          if (res.status === 403) {
+            showOAuthError(
+              "HTTP 403: API Disabled",
+              `<strong>Action Required:</strong> Enable the Google Calendar API in Google Cloud Console.<br>` +
+              `Open <a href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com" target="_blank" class="underline font-bold text-indigo-700">Google Calendar API Library</a> and click <strong>ENABLE</strong>.`
+            );
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        
+        // Find primary email for UI display
+        const primaryCal = (data.items || []).find(c => c.primary);
+        if (primaryCal) {
+          document.getElementById('connectedUserEmail').textContent = primaryCal.id;
+        }
+
+        availableCalendars = (data.items || []).map(cal => ({
+          id: cal.id,
+          summary: cal.summary + (cal.primary ? ' (Primary)' : ''),
+          selected: true,
+          backgroundColor: cal.backgroundColor || '#4285f4'
+        }));
+        
+        renderCalendarList(availableCalendars);
+        hideOAuthError();
+      } catch (err) {
+        showOAuthError("Failed to Load Calendars", err.message);
+      }
+    }
+
+    function renderCalendarList(calendars) {
+      const container = document.getElementById('calendarListContainer');
+      container.innerHTML = '';
+
+      if (calendars.length === 0) {
+        container.innerHTML = `<div class="text-xs text-slate-400 p-2 text-center">No calendars loaded. Connect your account above.</div>`;
+        return;
+      }
+
+      calendars.forEach(cal => {
+        const item = document.createElement('label');
+        item.className = "flex items-center justify-between p-1.5 hover:bg-slate-100 rounded-lg cursor-pointer transition text-xs";
+        item.innerHTML = `
+          <div class="flex items-center space-x-2 truncate pr-2">
+            <input type="checkbox" data-cal-id="${cal.id}" ${cal.selected ? 'checked' : ''} class="cal-checkbox w-3.5 h-3.5 text-indigo-600 rounded border-slate-300">
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${cal.backgroundColor}"></span>
+            <span class="font-medium text-slate-700 truncate">${escapeHtml(cal.summary)}</span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    function selectAllCalendars(select) {
+      document.querySelectorAll('.cal-checkbox').forEach(cb => cb.checked = select);
+    }
+
+    function getSelectedCalendarIds() {
+      const checkboxes = document.querySelectorAll('.cal-checkbox:checked');
+      return Array.from(checkboxes).map(cb => cb.getAttribute('data-cal-id'));
+    }
+
+    // ========================================================
+    // WORKSPACE DIRECTORY SEARCH / AUTOCOMPLETE LOGIC
+    // ========================================================
+    function setupAutocompleteListeners() {
+      const input = document.getElementById('teammateEmailInput');
+      const dropdown = document.getElementById('autocompleteDropdown');
+
+      input.addEventListener('input', (e) => {
+        clearTimeout(searchDebounceTimer);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+          dropdown.classList.add('hidden');
+          return;
+        }
+
+        searchDebounceTimer = setTimeout(async () => {
+          document.getElementById('searchSpinner').classList.remove('hidden');
+          const results = await searchDirectoryPeople(query);
+          document.getElementById('searchSpinner').classList.add('hidden');
+          renderAutocompleteDropdown(results);
+        }, 250);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+
+    async function searchDirectoryPeople(query) {
+      if (currentMode === 'demo') {
+        return MOCK_DIRECTORY.filter(p => 
+          p.name.toLowerCase().includes(query.toLowerCase()) || 
+          p.email.toLowerCase().includes(query.toLowerCase())
+        );
+      }
+
+      if (!accessToken || !query || query.trim().length < 2) return [];
+
+      const results = [];
+      const seenEmails = new Set();
+
+      // 1. Primary Search: Workspace Domain Directory Search
+      try {
+        const dirUrl = `https://people.googleapis.com/v1/people:searchDirectoryPeople?query=${encodeURIComponent(query)}&readMask=names,emailAddresses,photos&sources=DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE`;
+        const res = await fetch(dirUrl, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          (data.people || []).forEach(p => {
+            const email = p.emailAddresses?.[0]?.value;
+            const name = p.names?.[0]?.displayName || email;
+            if (email && !seenEmails.has(email.toLowerCase())) {
+              seenEmails.add(email.toLowerCase());
+              results.push({ email, name, photo: p.photos?.[0]?.url || '' });
+            }
+          });
+          if (results.length > 0) return results;
+        }
+      } catch (err) {
+        console.warn('Directory Search error:', err);
+      }
+
+      // 2. Fallback Search: Personal Contacts Search
+      try {
+        const contactsUrl = `https://people.googleapis.com/v1/people:searchContacts?query=${encodeURIComponent(query)}&readMask=names,emailAddresses,photos`;
+        const res = await fetch(contactsUrl, {
+          headers: { 'Authorization': `Bearer ${accessToken}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          (data.results || []).forEach(r => {
+            const p = r.person;
+            const email = p?.emailAddresses?.[0]?.value;
+            const name = p?.names?.[0]?.displayName || email;
+            if (email && !seenEmails.has(email.toLowerCase())) {
+              seenEmails.add(email.toLowerCase());
+              results.push({ email, name, photo: p?.photos?.[0]?.url || '' });
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Contacts Search error:', err);
+      }
+
+      return results;
+    }
+
+    function renderAutocompleteDropdown(results) {
+      const dropdown = document.getElementById('autocompleteDropdown');
+      dropdown.innerHTML = '';
+
+      if (results.length === 0) {
+        dropdown.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">No matching contacts found. Click "Add" to enter manually.</div>`;
+        dropdown.classList.remove('hidden');
+        return;
+      }
+
+      results.forEach(person => {
+        const item = document.createElement('div');
+        item.className = "p-2.5 hover:bg-indigo-50/70 cursor-pointer transition flex items-center space-x-2.5";
+        
+        const avatarHtml = person.photo 
+          ? `<img src="${escapeHtml(person.photo)}" class="w-7 h-7 rounded-full object-cover border border-slate-200">`
+          : `<div class="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-xs flex items-center justify-center">${escapeHtml((person.name || person.email).charAt(0).toUpperCase())}</div>`;
+
+        item.innerHTML = `
+          ${avatarHtml}
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-semibold text-slate-800 truncate">${escapeHtml(person.name)}</div>
+            <div class="text-[11px] text-slate-500 truncate">${escapeHtml(person.email)}</div>
+          </div>
+          <i class="fa-solid fa-plus text-indigo-500 text-xs opacity-0 hover:opacity-100"></i>
+        `;
+
+        item.addEventListener('click', () => {
+          addTeammateEmail(person.email);
+          document.getElementById('teammateEmailInput').value = '';
+          dropdown.classList.add('hidden');
+        });
+
+        dropdown.appendChild(item);
+      });
+
+      dropdown.classList.remove('hidden');
+    }
+
+    // --- Teammate Management ---
+    function addManualTeammateEmail() {
+      const input = document.getElementById('teammateEmailInput');
+      const email = input.value.trim().toLowerCase();
+      addTeammateEmail(email);
+      input.value = '';
+      document.getElementById('autocompleteDropdown').classList.add('hidden');
+    }
+
+    function addTeammateEmail(email) {
+      const cleanEmail = (email || '').trim().toLowerCase();
+
+      if (!cleanEmail) return;
+      if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+        alert('Please enter a valid email address.');
+        return;
+      }
+      if (teammateEmails.includes(cleanEmail)) {
+        alert('This teammate is already added.');
+        return;
+      }
+
+      teammateEmails.push(cleanEmail);
+      renderTeammateChips();
+    }
+
+    function removeTeammateEmail(email) {
+      teammateEmails = teammateEmails.filter(e => e !== email);
+      renderTeammateChips();
+    }
+
+    function renderTeammateChips() {
+      const container = document.getElementById('teammatesChipsContainer');
+      container.innerHTML = '';
+
+      if (teammateEmails.length === 0) {
+        container.innerHTML = `<span class="text-xs text-slate-400 italic">No teammates added. Search workspace names or type emails above.</span>`;
+        return;
+      }
+
+      teammateEmails.forEach(email => {
+        const chip = document.createElement('div');
+        chip.className = "inline-flex items-center bg-indigo-50 border border-indigo-200 text-indigo-900 text-[11px] font-medium px-2.5 py-1 rounded-lg space-x-1.5 shadow-sm";
+        chip.innerHTML = `
+          <i class="fa-solid fa-user text-indigo-500 text-[10px]"></i>
+          <span>${escapeHtml(email)}</span>
+          <button onclick="removeTeammateEmail('${escapeHtml(email)}')" class="text-indigo-400 hover:text-indigo-700 ml-1">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        `;
+        container.appendChild(chip);
+      });
+    }
+
+    // ========================================================
+    // AVAILABILITY CALCULATION & GOOGLE FREEBUSY QUERYING
+    // ========================================================
+    async function calculateAvailability() {
+      const selectedCalIds = getSelectedCalendarIds();
+      const allQueryTargetIds = Array.from(new Set([...selectedCalIds, ...teammateEmails]));
+
+      if (allQueryTargetIds.length === 0) {
+        alert('Please select at least one calendar or add a teammate email address.');
+        return;
+      }
+
+      const startDateStr = document.getElementById('startDate').value;
+      const endDateStr = document.getElementById('endDate').value;
+      const workStartStr = document.getElementById('workStart').value;
+      const workEndStr = document.getElementById('workEnd').value;
+      const minDuration = parseInt(document.getElementById('minDuration').value, 10) || 60;
+      const includeWeekends = document.getElementById('includeWeekends').checked;
+      const timeZone = document.getElementById('timezoneSelect').value;
+
+      if (!startDateStr || !endDateStr) {
+        alert('Please specify both Start Date and End Date.');
+        return;
+      }
+
+      // UI States
+      document.getElementById('placeholderState').classList.add('hidden');
+      document.getElementById('loadingState').classList.remove('hidden');
+      document.getElementById('dailyResultsList').classList.add('hidden');
+      document.getElementById('statsRow').classList.add('hidden');
+
+      let freeBusyMap = {};
+
+      if (currentMode === 'demo') {
+        freeBusyMap = getMockBusyData(timeZone, startDateStr);
+      } else {
+        if (!accessToken) {
+          alert('Please click "Connect Google Workspace" to sign in first.');
+          document.getElementById('loadingState').classList.add('hidden');
+          document.getElementById('placeholderState').classList.remove('hidden');
+          return;
+        }
+
+        const rangeStart = DateTime.fromISO(startDateStr, { zone: timeZone }).startOf('day').toISO();
+        const rangeEnd = DateTime.fromISO(endDateStr, { zone: timeZone }).endOf('day').toISO();
+
+        try {
+          const res = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              timeMin: rangeStart,
+              timeMax: rangeEnd,
+              timeZone: timeZone,
+              items: allQueryTargetIds.map(id => ({ id: id }))
+            })
+          });
+
+          if (!res.ok) {
+            throw new Error(`Google FreeBusy API error: HTTP ${res.status}`);
+          }
+
+          const data = await res.json();
+          freeBusyMap = data.calendars || {};
+        } catch (err) {
+          alert("Error querying Google Workspace FreeBusy API: " + err.message);
+          document.getElementById('loadingState').classList.add('hidden');
+          document.getElementById('placeholderState').classList.remove('hidden');
+          return;
+        }
+      }
+
+      // Combine busy times across selected calendars and teammates
+      let allRawBusy = [];
+      allQueryTargetIds.forEach(id => {
+        if (freeBusyMap[id] && freeBusyMap[id].busy) {
+          allRawBusy.push(...freeBusyMap[id].busy);
+        }
+      });
+
+      // Calculate availability day-by-day
+      const dailyResults = [];
+      let startDt = DateTime.fromISO(startDateStr, { zone: timeZone }).startOf('day');
+      const endDt = DateTime.fromISO(endDateStr, { zone: timeZone }).startOf('day');
+
+      while (startDt <= endDt) {
+        const isWeekend = (startDt.weekday === 6 || startDt.weekday === 7);
+        
+        if (!isWeekend || includeWeekends) {
+          const dayDateStr = startDt.toISODate();
+          const dayWorkStart = DateTime.fromISO(`${dayDateStr}T${workStartStr}:00`, { zone: timeZone });
+          const dayWorkEnd = DateTime.fromISO(`${dayDateStr}T${workEndStr}:00`, { zone: timeZone });
+
+          const freeGaps = computeFreeGapsForDay(allRawBusy, dayWorkStart, dayWorkEnd, timeZone, minDuration);
+
+          dailyResults.push({
+            date: startDt,
+            dateStr: dayDateStr,
+            formattedDate: startDt.toFormat('EEEE, MMMM d, yyyy'),
+            isWeekend: isWeekend,
+            gaps: freeGaps
+          });
+        }
+        startDt = startDt.plus({ days: 1 });
+      }
+
+      renderResults(dailyResults, timeZone, minDuration, allQueryTargetIds.length);
+    }
+
+    function computeFreeGapsForDay(rawBusyIntervals, workStart, workEnd, timeZone, minDurationMins) {
+      const clipped = [];
+
+      for (const item of rawBusyIntervals) {
+        const bStart = DateTime.fromISO(item.start, { zone: timeZone });
+        const bEnd = DateTime.fromISO(item.end, { zone: timeZone });
+
+        const clipStart = bStart < workStart ? workStart : bStart;
+        const clipEnd = bEnd > workEnd ? workEnd : bEnd;
+
+        if (clipStart < clipEnd) {
+          clipped.push({ start: clipStart, end: clipEnd });
+        }
+      }
+
+      clipped.sort((a, b) => a.start.toMillis() - b.start.toMillis());
+
+      const merged = [];
+      for (const interval of clipped) {
+        if (merged.length === 0) {
+          merged.push({ start: interval.start, end: interval.end });
+        } else {
+          const last = merged[merged.length - 1];
+          if (interval.start <= last.end) {
+            if (interval.end > last.end) {
+              last.end = interval.end;
+            }
+          } else {
+            merged.push({ start: interval.start, end: interval.end });
+          }
+        }
+      }
+
+      const gaps = [];
+      let cursor = workStart;
+
+      for (const busy of merged) {
+        if (busy.start > cursor) {
+          const gapMins = Math.round(busy.start.diff(cursor, 'minutes').minutes);
+          if (gapMins >= minDurationMins) {
+            gaps.push({ start: cursor, end: busy.start, durationMins: gapMins });
+          }
+        }
+        if (busy.end > cursor) {
+          cursor = busy.end;
+        }
+      }
+
+      if (workEnd > cursor) {
+        const gapMins = Math.round(workEnd.diff(cursor, 'minutes').minutes);
+        if (gapMins >= minDurationMins) {
+          gaps.push({ start: cursor, end: workEnd, durationMins: gapMins });
+        }
+      }
+
+      return gaps;
+    }
+
+    function renderResults(dailyResults, timeZone, minDuration, sourcesCount) {
+      document.getElementById('loadingState').classList.add('hidden');
+      const listContainer = document.getElementById('dailyResultsList');
+      listContainer.innerHTML = '';
+
+      let totalSlotsCount = 0;
+      let totalMinutesFree = 0;
+      lastCalculatedResults = dailyResults;
+
+      dailyResults.forEach(day => {
+        totalSlotsCount += day.gaps.length;
+        day.gaps.forEach(g => totalMinutesFree += g.durationMins);
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-50 border border-slate-200 rounded-xl p-4 transition hover:border-slate-300";
+
+        const cardHeader = `
+          <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/60">
+            <div class="flex items-center space-x-2">
+              <span class="font-bold text-slate-800 text-sm">${day.formattedDate}</span>
+              ${day.isWeekend ? '<span class="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">Weekend</span>' : ''}
+            </div>
+            <span class="text-xs font-semibold text-slate-500">${day.gaps.length} available ${day.gaps.length === 1 ? 'slot' : 'slots'}</span>
+          </div>
+        `;
+
+        let slotsHtml = '';
+        if (day.gaps.length === 0) {
+          slotsHtml = `<div class="text-xs text-slate-400 italic">No continuous free slots ≥ ${minDuration} mins found across all ${sourcesCount} calendars.</div>`;
+        } else {
+          slotsHtml = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">';
+          day.gaps.forEach(gap => {
+            const startTimeFormatted = gap.start.toFormat('h:mm a');
+            const endTimeFormatted = gap.end.toFormat('h:mm a');
+            const durationText = formatDuration(gap.durationMins);
+
+            slotsHtml += `
+              <div class="bg-white border border-slate-200 rounded-lg p-3 shadow-sm flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <i class="fa-solid fa-clock text-indigo-500 text-xs"></i>
+                  <span class="font-semibold text-slate-800 text-xs">${startTimeFormatted} – ${endTimeFormatted}</span>
+                </div>
+                <span class="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">${durationText}</span>
+              </div>
+            `;
+          });
+          slotsHtml += '</div>';
+        }
+
+        card.innerHTML = cardHeader + slotsHtml;
+        listContainer.appendChild(card);
+      });
+
+      document.getElementById('resultsCountBadge').textContent = `${totalSlotsCount} Slots Found`;
+      document.getElementById('resultsSubtitle').textContent = `Free slots ≥ ${minDuration} mins in ${timeZone}`;
+      
+      const summaryBar = document.getElementById('sourcesSummaryBar');
+      document.getElementById('sourcesSummaryText').textContent = `${sourcesCount} calendars & workspace teammates`;
+      summaryBar.classList.remove('hidden');
+
+      document.getElementById('statDaysCount').textContent = dailyResults.length;
+      document.getElementById('statSlotsCount').textContent = totalSlotsCount;
+      document.getElementById('statTotalHours').textContent = `${(totalMinutesFree / 60).toFixed(1)} hrs`;
+
+      document.getElementById('statsRow').classList.remove('hidden');
+      listContainer.classList.remove('hidden');
+
+      document.getElementById('copyResultsBtn').disabled = totalSlotsCount === 0;
+    }
+
+    function formatDuration(mins) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h === 0) return `${m}m`;
+      if (m === 0) return `${h}h`;
+      return `${h}h ${m}m`;
+    }
+
+    function copyResultsToClipboard() {
+      if (!lastCalculatedResults || lastCalculatedResults.length === 0) return;
+
+      const format = document.getElementById('copyFormatSelect').value;
+      const timeZone = document.getElementById('timezoneSelect').value;
+      let outputText = '';
+
+      if (format === 'bullets') {
+        outputText = `Common Workspace Availability (${timeZone}):\n`;
+        lastCalculatedResults.forEach(day => {
+          if (day.gaps.length > 0) {
+            const slotsStr = day.gaps.map(g => `${g.start.toFormat('h:mm a')} - ${g.end.toFormat('h:mm a')}`).join(' | ');
+            outputText += `• ${day.date.toFormat('EEE, MMM d')}: ${slotsStr}\n`;
+          }
+        });
+      } else if (format === 'markdown') {
+        outputText = `### Common Calendar Availability (${timeZone})\n\n`;
+        lastCalculatedResults.forEach(day => {
+          if (day.gaps.length > 0) {
+            outputText += `**${day.formattedDate}**\n`;
+            day.gaps.forEach(g => {
+              outputText += `* ${g.start.toFormat('h:mm a')} – ${g.end.toFormat('h:mm a')} (${formatDuration(g.durationMins)})\n`;
+            });
+            outputText += `\n`;
+          }
+        });
+      } else if (format === 'email') {
+        outputText = `Hi team,\n\nHere are our overlapping free windows where everyone is available (${timeZone}):\n\n`;
+        lastCalculatedResults.forEach(day => {
+          if (day.gaps.length > 0) {
+            outputText += `${day.formattedDate}:\n`;
+            day.gaps.forEach(g => {
+              outputText += `  • ${g.start.toFormat('h:mm a')} - ${g.end.toFormat('h:mm a')} (${formatDuration(g.durationMins)})\n`;
+            });
+            outputText += `\n`;
+          }
+        });
+        outputText += `Please reply with the time slot that works best for you!\n`;
+      } else {
+        outputText = `Common Availability (${timeZone}):\n\n`;
+        lastCalculatedResults.forEach(day => {
+          outputText += `${day.formattedDate}:\n`;
+          if (day.gaps.length === 0) {
+            outputText += `  - No common slots available\n`;
+          } else {
+            day.gaps.forEach(g => {
+              outputText += `  - ${g.start.toFormat('h:mm a')} - ${g.end.toFormat('h:mm a')} (${formatDuration(g.durationMins)})\n`;
+            });
+          }
+          outputText += `\n`;
+        });
+      }
+
+      navigator.clipboard.writeText(outputText).then(() => {
+        alert("Results copied to clipboard!");
+      });
+    }
+
+    function showOAuthError(title, msg) {
+      const banner = document.getElementById('oauthErrorBanner');
+      document.getElementById('oauthErrorTitle').textContent = title;
+      document.getElementById('oauthErrorMsg').innerHTML = msg;
+      banner.classList.remove('hidden');
+    }
+
+    function hideOAuthError() {
+      document.getElementById('oauthErrorBanner').classList.add('hidden');
+    }
+
+    function escapeHtml(str) {
+      return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
